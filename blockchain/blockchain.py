@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 import hashlib
 import json
 import os
@@ -12,7 +11,6 @@ CHAIN_PATH = os.path.join(BASE_DIR, "chain.json")
 
 
 class Bloco:
-
     def __init__(self, bloco_id, timestamp, evento, hash_anterior, hash_atual=None):
         self.id = bloco_id
         self.timestamp = timestamp
@@ -21,7 +19,6 @@ class Bloco:
         self.hash_atual = hash_atual if hash_atual else self.calcular_hash()
 
     def calcular_hash(self):
-        """Calcula SHA-256 sobre TODOS os campos do bloco (exceto o próprio hash)."""
         conteudo = f"{self.id}|{self.timestamp}|{self.evento}|{self.hash_anterior}"
         return hashlib.sha256(conteudo.encode("utf-8")).hexdigest()
 
@@ -46,7 +43,6 @@ class Bloco:
 
 
 class Blockchain:
-
     def __init__(self, caminho=CHAIN_PATH):
         self.caminho = caminho
         self.blocos = []
@@ -69,7 +65,6 @@ class Blockchain:
             json.dump([b.para_dict() for b in self.blocos], f, indent=2, ensure_ascii=False)
 
     def _criar_genesis(self):
-        """Cria o bloco inicial (gênesis) da cadeia."""
         genesis = Bloco(
             bloco_id=0,
             timestamp=datetime.now().isoformat(),
@@ -92,6 +87,26 @@ class Blockchain:
         self._salvar()
         return novo
 
+    def validar(self):
+        problemas = []
+        for i, bloco in enumerate(self.blocos):
+            if bloco.calcular_hash() != bloco.hash_atual:
+                problemas.append(
+                    f"Bloco {bloco.id}: hash recalculado difere do armazenado (conteúdo ADULTERADO)."
+                )
+            if i > 0:
+                anterior = self.blocos[i - 1]
+                if bloco.hash_anterior != anterior.hash_atual:
+                    problemas.append(
+                        f"Bloco {bloco.id}: hash_anterior não corresponde ao hash_atual "
+                        f"do bloco {anterior.id} (ENCADEAMENTO QUEBRADO)."
+                    )
+            if i > 0 and bloco.id != self.blocos[i - 1].id + 1:
+                problemas.append(
+                    f"Bloco {bloco.id}: identificador fora de sequência (possível remoção/inserção de blocos)."
+                )
+        return (len(problemas) == 0, problemas)
+
     def listar(self):
         for b in self.blocos:
             print(f"[{b.id:04d}] {b.timestamp} | {b.evento}")
@@ -104,9 +119,26 @@ def registrar_evento(evento):
     bloco = chain.adicionar_evento(evento)
     return bloco
 
+
+def validar_cadeia(verbose=True):
+    chain = Blockchain()
+    ok, problemas = chain.validar()
+    if verbose:
+        if ok:
+            print(f"[OK] Blockchain íntegra. Total de blocos: {len(chain.blocos)}")
+        else:
+            print("=" * 70)
+            print("⚠  ALERTA DE SEGURANÇA: BLOCKCHAIN CORROMPIDA  ⚠")
+            print("   Notifique o ADMINISTRADOR imediatamente.")
+            print("=" * 70)
+            for p in problemas:
+                print(f"  -> {p}")
+    return ok, problemas
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(__doc__)
+        print("Uso: python3 blockchain.py [add <evento> | listar | validar]")
         sys.exit(1)
 
     comando = sys.argv[1].lower()
@@ -116,6 +148,9 @@ if __name__ == "__main__":
         print(f"[OK] Bloco {bloco.id} registrado: {bloco.evento}")
     elif comando == "listar":
         Blockchain().listar()
+    elif comando == "validar":
+        ok, _ = validar_cadeia()
+        sys.exit(0 if ok else 2)
     else:
-        print(__doc__)
+        print("Uso: python3 blockchain.py [add <evento> | listar | validar]")
         sys.exit(1)
