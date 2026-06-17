@@ -135,6 +135,9 @@ def loop_principal(sessao):
             monitor.inicializar()
         elif codigo == "mver":
             monitor.verificar()
+        elif codigo == "audit":
+            from auditoria.auditor import gerar_relatorio
+            gerar_relatorio()
         elif codigo == "bval":
             validar_cadeia()
         elif codigo == "blist":
